@@ -1,44 +1,30 @@
-# AgriMit Frontend Enhancement TODO
+# AgriMit Full Setup & Run - Newly Pulled Repo
 
-## Approved Plan Steps:
+## Plan Steps (Using ./backend + AgriMit/frontend):
 
-### 1. Install Dependencies
+### 1. Backend Setup & Run [ ]
 
-- [ ] `cd AgriMit/frontend && npm i react-router-dom chart.js react-chartjs-2 react-leaflet leaflet @types/leaflet lucide-react socket.io-client zustand` (use zustand for auth/map state instead of context)
-- Update package.json scripts if needed.
+```
+cd backend && python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt && uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
-### 2. Create Auth State Management
+- Loads agrimit_v2_production.h5, /v1/analyze ready.
 
-- [x] Create `src/stores/authStore.js` for login/register/logout, mock user data (farmer/expert).
-- [x] Create `src/components/LoginModal.jsx`, `RegisterModal.jsx`.
+### 2. Frontend Setup & Run [ ]
 
-### 3. Real-time Map
+```
+cd AgriMit/frontend && npm install && npm run dev
+```
 
-- [x] Create `src/components/RealTimeMap.jsx` with react-leaflet, mock field locations.
-- [ ] Integrate into App/FarmerView sidebar.
+- Port 5173, connects to backend:8000.
 
-### 4. Enhanced Graphs
+### 3. Verify [ ]
 
-- [x] Create `src/components/SensorGraphs.jsx`: pH, temp, moisture real-time charts with Chart.js.
-- [x] Create `src/components/VegetationHealthGraph.jsx`.
-- [ ] Integrate graphs in ExpertView/FarmerView.
+- Backend: curl http://localhost:8000 (or browser).
+- Frontend: localhost:5173 → Login → FarmerView → ChatBot buttons.
 
-### 5. Alerts System
+### 4. Update TODOs [ ]
 
-- [x] Create `src/components/Alerts.jsx` with mock condition-based alerts.
-- [ ] Add to FarmerView top section.
+- Mark AgriMit/frontend/TODO.md step 5-7 done.
 
-### 6. Layout & Integration
-
-- [x] Update `src/App.jsx`: Auth wrapper, sidebar map layout.
-- [x] Update Navbar: Auth buttons/modals complete.
-- [x] Enhance FarmerView: Added Alerts, SensorGraphs, VegetationHealthGraph.
-- [ ] Enhance ExpertView with graphs/alerts/map integration.
-- [ ] Update api.js with mock endpoints.
-
-### 7. Styling & Testing
-
-- [ ] Update CSS for new components.
-- [ ] Test: Auth flow, map interaction, graph rendering, real-time mock updates, alerts.
-
-Progress will be tracked here.
+## Progress Tracking
