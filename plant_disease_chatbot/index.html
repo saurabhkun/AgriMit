@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plant Disease Chatbot</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .chat-bubble-user { @apply bg-green-500 text-white ml-auto max-w-xs }
+    .chat-bubble-bot { @apply bg-gray-200 text-gray-800 mr-auto max-w-xs }
+    .step-active { @apply ring-2 ring-blue-500 }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    // Placeholder AI model
+    const predictDisease = async (image, crop, symptoms, env) => {
+      // Simulate API call
+      await new Promise(r => setTimeout(r, 1500));
+      
+      const diseases = {
+        rice: { 'Brown spots': 'Rice Blast', 'Yellow leaves': 'Rice Bacterial Leaf Blight', 'Not sure': 'Healthy' },
+        tomato: { 'Brown spots': 'Early Blight', 'Yellow leaves': 'Tomato Mosaic Virus', 'Not sure': 'Healthy' },
+        potato: { 'Brown spots': 'Late Blight', 'Yellow leaves': 'Potato Leafroll Virus', 'Not sure': 'Healthy' },
+        maize: { 'Brown spots': 'Maize Leaf Blight', 'Yellow leaves': 'Maize Streak Virus', 'Not sure': 'Healthy' },
+        other: { 'Brown spots': 'Fungal Infection', 'Yellow leaves': 'Nutrient Deficiency', 'Not sure': 'Healthy' }
+      };
+
+      const disease = diseases[crop]?.[symptoms] || 'Unknown Disease';
+      const confidence = Math.round(70 + Math.random() * 25);
+      
+      const treatments = {
+        'Rice Blast': {
+          chemical: 'Tricyclazole (50g/acre)',
+          organic: 'Neem oil spray + remove infected leaves'
+        },
+        'Early Blight': {
+          chemical: 'Mancozeb (200g/acre)',
+          organic: 'Copper fungicide + mulching'
+        },
+        // Add more...
+        default: {
+          chemical: 'Consult local agri expert',
+          organic: 'Neem oil + proper irrigation'
+        }
+      };
+
+      return {
+        disease,
+        confidence,
+        treatment: treatments[disease] || treatments.default
+      };
+    };
+
+    const DiseaseChatbot = () => {
+      const [step, setStep] = useState(0);
+      const [data, setData] = useState({
+        crop: '',
+        image: null,
+        symptoms: '',
+        env: ''
+      });
+      const [result, setResult] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const scrollRef = useRef(null);
+
+      const messages = [
+        { type: 'bot', text: 'Hi farmer! 👋 Let me help identify your plant disease. First, what crop?' },
+        data.crop && { type: 'user', text: data.crop },
+        step === 1 && { type: 'bot', text: 'Please upload a leaf image.' },
+        data.image && { type: 'user', text: '📷 Image uploaded' },
+        step === 2 && { type: 'bot', text: 'What symptoms do you see?' },
+        data.symptoms && { type: 'user', text: data.symptoms },
+        step === 3 && { type: 'bot', text: 'Weather conditions?' },
+        data.env && { type: 'user', text: data.env },
+        loading && { type: 'bot', text: 'Analyzing your plant... 🔬' },
+        result && { type: 'bot', text: `Disease: **${result.disease}** (${result.confidence}%)
+Chemical: ${result.treatment.chemical}
+Organic: ${result.treatment.organic}` }
+      ].filter(Boolean);
+
+      useEffect(() => {
+        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [messages]);
+
+      const nextStep = async () => {
+        if (step === 4) {
+          setLoading(true);
+          const resultData = await predictDisease(data.image, data.crop, data.symptoms, data.env);
+          setResult(resultData);
+          setLoading(false);
+          return;
+        }
+        setStep(step + 1);
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 text-white text-center">
+              <div className="w-16 h-16 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">🌱</span>
+              </div>
+              <h1 className="text-2xl font-bold">Plant Doctor Bot</h1>
+              <p className="opacity-90">Step {step + 1}/5</p>
+            </div>
+
+            {/* Chat Area */}
+            <div className="h-96 overflow-y-auto p-6 space-y-4 bg-gray-50">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`p-4 rounded-2xl max-w-xs ${msg.type === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot shadow-lg'}`}>
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  </div>
+                </div>
+              ))}
+              <div ref={scrollRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="p-6 bg-white border-t">
+              {step === 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {['Rice', 'Tomato', 'Potato', 'Maize', 'Other'].map(crop => (
+                    <button key={crop} onClick={() => {
+                      setData({...data, crop});
+                      nextStep();
+                    }} className="p-3 bg-green-100 hover:bg-green-200 rounded-xl font-semibold transition-all">
+                      {crop}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {step === 1 && (
+                <input type="file" accept="image/*" onChange={e => {
+                  setData({...data, image: e.target.files[0]});
+                  nextStep();
+                }} className="w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-center cursor-pointer hover:border-green-400" />
+              )}
+
+              {step === 2 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {['Brown spots', 'Yellow leaves', 'Black patches', 'Dry edges', 'Not sure'].map(symptom => (
+                    <button key={symptom} onClick={() => {
+                      setData({...data, symptoms: symptom});
+                      nextStep();
+                    }} className="p-3 bg-blue-100 hover:bg-blue-200 rounded-xl font-semibold transition-all">
+                      {symptom}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {['Hot', 'Rainy', 'Humid', 'Dry'].map(env => (
+                    <button key={env} onClick={() => {
+                      setData({...data, env});
+                      nextStep();
+                    }} className="p-3 bg-purple-100 hover:bg-purple-200 rounded-xl font-semibold transition-all">
+                      {env}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<DiseaseChatbot />);
+  </script>
+</body>
+</html>
