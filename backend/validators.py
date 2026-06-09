@@ -18,7 +18,7 @@ def check_image_quality(image_bytes: bytes) -> tuple[bool, str]:
         # Blur check (Threshold 30 as discussed)
         blur_variance = cv2.Laplacian(gray, cv2.CV_64F).var()
         if blur_variance < 30:
-            return False, f"Image is unclear (Variance: {blur_variance:.2f}) — please capture a sharper photo."
+            return False, "Image is unclear — please capture a closer leaf photo."
 
         # Brightness check
         avg_intensity = float(np.mean(gray))

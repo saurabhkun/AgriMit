@@ -3,17 +3,15 @@ import io
 import cv2
 import logging
 import datetime
+import json
 import numpy as np
 import tensorflow as tf
+from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# 🛠️ CRITICAL: Preprocessing must match your v3 training logic
-from tensorflow.keras.applications.efficientnet import preprocess_input
-
 # 🛠️ DIRECT INTERNAL MODULE IMPORT 
-# If this fails, the server will tell you EXACTLY which file is missing
 from recommender import generate_recovery_plan
 from validators import check_image_quality, extract_live_gps
 
@@ -21,7 +19,7 @@ from validators import check_image_quality, extract_live_gps
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AgriMit.API")
 
-app = FastAPI(title="AgriMit Master Hub - Stable Core Build")
+app = FastAPI(title="AgriVision AI Crop Intelligence")
 
 app.add_middleware(
     CORSMiddleware, 
@@ -30,44 +28,45 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# 1. THE BRAIN (Verified Class Order)
-CLASS_NAMES = [
-    'Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-    'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 'Cherry_(including_sour)___healthy',
-    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 'Corn_(maize)___Common_rust_',
-    'Corn_(maize)___Northern_Leaf_Blight', 'Corn_(maize)___healthy', 'Grape___Black_rot',
-    'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)', 'Grape___healthy',
-    'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot', 'Peach___healthy',
-    'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy', 'Potato___Early_blight',
-    'Potato___Late_blight', 'Potato___healthy', 'Raspberry___healthy', 'Soybean___healthy',
-    'Squash___Powdery_mildew', 'Strawberry___Leaf_scorch', 'Strawberry___healthy',
-    'Tomato___Bacterial_spot', 'Tomato___Early_blight', 'Tomato___Late_blight',
-    'Tomato___Leaf_Mold', 'Tomato___Septoria_leaf_spot',
-    'Tomato___Spider_mites Two-spotted_spider_mite', 'Tomato___Target_Spot',
-    'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus', 'Tomato___healthy'
-]
-
 MODEL = None
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CLASS_NAMES = []
+BASE_DIR = Path(__file__).parent.resolve()
 
 @app.on_event("startup")
 async def startup_event():
-    global MODEL
-    # Ensure your new v3 model is renamed to match this or update the name here
-    model_path = os.path.join(BASE_DIR, "models", "agrimit_v2_production.h5")
+    global MODEL, CLASS_NAMES
+    models_dir = BASE_DIR / "models"
+    model_path = models_dir / "best_agrivision_model.keras"
+    class_names_path = models_dir / "class_names.json"
+    
     try:
-        if os.path.exists(model_path):
-            MODEL = tf.keras.models.load_model(model_path, compile=False)
-            logger.info(f"✅ AgriMit Stable-Core Engine: ONLINE (Model: {model_path})")
+        if class_names_path.exists():
+            with open(class_names_path, "r", encoding="utf-8") as f:
+                CLASS_NAMES = json.load(f)
+            logger.info(f"✅ Loaded {len(CLASS_NAMES)} classes from {class_names_path}")
+        else:
+            logger.error(f"❌ CRITICAL: class_names.json not found at {class_names_path}")
+            
+        if model_path.exists():
+            MODEL = tf.keras.models.load_model(str(model_path), compile=False)
+            logger.info(f"✅ AgriVision Model ONLINE (Model: {model_path.name})")
         else:
             logger.error(f"❌ CRITICAL: Model file not found at {model_path}")
     except Exception as e:
         logger.error(f"❌ CRITICAL: Model mount failed: {e}")
 
+@app.get("/health")
+def health_check():
+    return {
+        "status": "ok",
+        "model_loaded": MODEL is not None,
+        "classes_loaded": len(CLASS_NAMES)
+    }
+
 @app.post("/v1/analyze")
 async def analyze_crop(file: UploadFile = File(...), lang: str = Query("English")):
-    if MODEL is None: 
-        raise HTTPException(status_code=500, detail="Model Offline - Check 'models/' folder")
+    if MODEL is None or not CLASS_NAMES: 
+        raise HTTPException(status_code=500, detail="Model or classes Offline - Check 'models/' folder")
 
     try:
         image_bytes = await file.read()
@@ -82,11 +81,14 @@ async def analyze_crop(file: UploadFile = File(...), lang: str = Query("English"
         # --- STAGE 2: PREPROCESSING ---
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            return {"status": "error", "message": "Failed to decode image."}
+
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # RGB Conversion
-        img = cv2.resize(img, (224, 224))
+        img = cv2.resize(img, (160, 160))
         
         img_array = np.expand_dims(img, axis=0)
-        img_array = preprocess_input(img_array) # Sync with v3 Training
+        img_array = img_array.astype(np.float32) / 255.0 # Normalize 0-1
 
         # --- STAGE 3: INFERENCE ---
         predictions = MODEL(img_array, training=False)
@@ -95,27 +97,38 @@ async def analyze_crop(file: UploadFile = File(...), lang: str = Query("English"
         idx = int(np.argmax(preds_numpy[0]))
         confidence = float(np.max(preds_numpy[0]))
 
+        # --- CONFIDENCE GATE ---
+        if confidence < 0.60:
+            return {
+                "status": "low_confidence",
+                "message": "Prediction confidence is low. Please upload a clearer leaf image."
+            }
+
         # --- STAGE 4: RESULT PARSING ---
         raw_label = CLASS_NAMES[idx]
         crop, disease = raw_label.split("___") if "___" in raw_label else (raw_label, "Healthy")
-        severity = "High" if any(x in disease for x in ["Virus", "Blight", "Mite"]) else "Moderate"
+        crop = crop.replace("_", " ")
+        disease = disease.replace("_", " ")
+        
+        severity = "High" if any(x in disease for x in ["Virus", "Blight", "Mite", "Rot", "scab", "spot"]) else "Moderate"
+        if disease.lower() == "healthy":
+            severity = "None"
 
         # Generate recovery plan (From recommender.py)
-        plan = generate_recovery_plan(disease, crop, lat, lon, lang)
+        plan = generate_recovery_plan(disease, crop, confidence, severity, lat, lon, lang)
 
         return {
             "status": "success",
             "prediction": {
-                "crop": crop.replace("_", " "),
-                "disease": disease.replace("_", " "),
-                "confidence": f"{round(confidence * 100, 1)}%",
+                "crop": crop,
+                "disease": disease,
+                "confidence": round(confidence, 4),
                 "severity": severity
             },
             "recovery_plan": plan,
             "metadata": {
-                "location": f"{lat}, {lon}",
-                "timestamp": datetime.datetime.now().strftime("%I:%M %p"),
-                "engine": "AgriMit Stable-Core v3.0 (Synchronized)"
+                "model": "best_agrivision_model.keras",
+                "classes": len(CLASS_NAMES)
             }
         }
 

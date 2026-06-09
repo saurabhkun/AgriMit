@@ -1,11 +1,22 @@
+# Python
+venv/
 .venv/
-node_modules/
 __pycache__/
-.env
+*.pyc
+*.pyo
 
+# Node
 node_modules/
-.venv/
-__pycache__/
-.env
+
+# Build outputs
 dist/
 build/
+
+# Environment variables (secrets)
+.env
+.env.local
+.env.production
+
+# Misc
+.DS_Store
+*.log

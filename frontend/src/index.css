@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-abstract-blue: #4C5FD5;
+  --color-abstract-lavender: #dadbf1;
+  --color-abstract-black: #000000;
+  --color-abstract-white: #ffffff;
+  --color-abstract-darkgray: #1c1c1c;
+  --font-sans: 'Inter', sans-serif;
+}
+
+.btn-primary {
+  @apply bg-abstract-blue text-white px-6 py-3 rounded-full font-medium hover:opacity-90 transition-opacity;
+}
+
+.btn-secondary {
+  @apply bg-white text-abstract-black border border-abstract-black px-6 py-3 rounded-full font-medium hover:bg-gray-50 transition-colors;
+}
+
+.input-field {
+  @apply w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-abstract-blue focus:border-transparent transition-all;
+}
